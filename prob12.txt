@@ -1,0 +1,75 @@
+from tensorflow.keras.layers import Input,Flatten, Dense, Conv2D, MaxPool2D
+from tensorflow.keras.models import Model
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.applications.vgg16 import VGG16,preprocess_input
+import numpy as np
+IMG_W =32
+IMG_H = 32
+
+def build_model():
+  basemodel = VGG16(input_shape = (IMG_W,IMG_H,3),include_top=False)
+  basemodel.summary()
+
+  for layer in basemodel.layers:
+    layer.trainable = False
+  basemodel.summary()
+
+  inputs = basemodel.input
+  x = basemodel.output
+  x = Flatten()(x)
+  x = Dense(8, activation = 'sigmoid')(x)
+
+  outputs = Dense(2)(x)
+  model = Model(inputs, outputs)
+
+  model.summary()
+  return model
+
+
+def prepare_data():
+  (trainX, trainY),(testX,testY) = mnist.load_data()
+  print(trainX.shape, trainY.shape, testX.shape, testY.shape)
+
+  train_index = np.argwhere(trainY<2)
+  test_index = np.argwhere(testY<2)
+  train_index =np.squeeze(train_index)
+  test_index = np.squeeze(test_index)
+
+  trainX = trainX[train_index]
+  trainY = trainY[train_index]
+  testX = testX[test_index]
+  testY = testY[test_index]
+
+  trainX = np.pad(trainX,((0,0),(2,2),(2,2)),'constant')
+  testX = np.pad(testX,((0,0),(2,2),(2,2)),'constant')
+  
+  trainX = np.stack((trainX,)*3,axis=-1)
+  testX = np.stack((testX,)*3,axis=-1)
+
+  classN = 2
+  trainY = to_categorical(trainY,classN)
+  testY = to_categorical(testY,classN)
+  
+  trainX = trainX.astype(np.float32)
+  testX = testX.astype(np.float32)
+  trainX /=255
+  testX /=255
+
+  trainX = preprocess_input(trainX)
+  testX = preprocess_input(testX)
+
+  return trainX, trainY, testX, testY 
+
+
+def main():
+  trainX, trainY, testX, testY = prepare_data()
+  model = build_model()
+
+  model.compile(loss = 'mse', optimizer = 'rmsprop')
+  model.fit(trainX,trainY,epochs =10,batch_size =16,validation_split=0.2)
+  model.compile(metrics = 'accuracy')
+  model.evaluate(testX,testY)
+
+if __name__ == "__main__":
+  main()
